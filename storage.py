@@ -1,6 +1,7 @@
 """
-JSON-based persistent storage. Each write auto-commits back to the GitHub repo
-so data survives across GitHub Actions runs without any external database.
+Per-user JSON storage. All data is isolated under data/users/{user_id}/.
+Global data (settings shared across bot) lives in data/global/.
+Each write auto-commits to GitHub so data persists across Actions runs.
 """
 
 import json
@@ -9,33 +10,43 @@ import subprocess
 from datetime import datetime, date, timedelta
 
 DATA_DIR = "data"
-os.makedirs(DATA_DIR, exist_ok=True)
+
+VALID_STATUSES = ["Applied", "Interviewing", "Offer", "Rejected", "Withdrawn"]
 
 
-def _path(name: str) -> str:
-    return os.path.join(DATA_DIR, f"{name}.json")
+# ── Internal helpers ──────────────────────────────────────────────────────────
+
+def _udir(user_id: str) -> str:
+    path = os.path.join(DATA_DIR, "users", str(user_id))
+    os.makedirs(path, exist_ok=True)
+    return path
 
 
-def _load(name: str, default):
-    p = _path(name)
-    if not os.path.exists(p):
-        return default
-    with open(p) as f:
-        return json.load(f)
+def _upath(user_id: str, name: str) -> str:
+    return os.path.join(_udir(user_id), f"{name}.json")
 
 
-def _save(name: str, data):
-    with open(_path(name), "w") as f:
+def _gpath(name: str) -> str:
+    gdir = os.path.join(DATA_DIR, "global")
+    os.makedirs(gdir, exist_ok=True)
+    return os.path.join(gdir, f"{name}.json")
+
+
+def _load(path: str, default):
+    return json.load(open(path)) if os.path.exists(path) else default
+
+
+def _save(path: str, data):
+    with open(path, "w") as f:
         json.dump(data, f, indent=2)
-    _commit(name)
+    _commit(path)
 
 
-def _commit(name: str):
+def _commit(path: str):
     try:
-        subprocess.run(["git", "add", _path(name)], capture_output=True)
-        diff = subprocess.run(["git", "diff", "--staged", "--quiet"])
-        if diff.returncode != 0:
-            subprocess.run(["git", "commit", "-m", f"bot: update {name}"], capture_output=True)
+        subprocess.run(["git", "add", path], capture_output=True)
+        if subprocess.run(["git", "diff", "--staged", "--quiet"]).returncode != 0:
+            subprocess.run(["git", "commit", "-m", f"bot: update {os.path.basename(path)}"], capture_output=True)
             subprocess.run(["git", "push"], capture_output=True)
     except Exception as e:
         print(f"[storage] git error: {e}")
@@ -43,170 +54,169 @@ def _commit(name: str):
 
 # ── Wishlist ──────────────────────────────────────────────────────────────────
 
-def add_wishlist(job_id, title, company, url):
-    data = _load("wishlist", {})
-    data[job_id] = {"title": title, "company": company, "url": url, "saved_at": datetime.now().isoformat()}
-    _save("wishlist", data)
+def add_wishlist(uid, job_id, title, company, url):
+    p = _upath(uid, "wishlist")
+    d = _load(p, {})
+    d[job_id] = {"title": title, "company": company, "url": url, "saved_at": datetime.now().isoformat()}
+    _save(p, d)
 
 
-def remove_wishlist(job_id):
-    data = _load("wishlist", {})
-    data.pop(job_id, None)
-    _save("wishlist", data)
+def remove_wishlist(uid, job_id):
+    p = _upath(uid, "wishlist")
+    d = _load(p, {})
+    d.pop(job_id, None)
+    _save(p, d)
 
 
-def get_wishlist():
-    data = _load("wishlist", {})
-    return [(jid, v["title"], v["company"], v["url"]) for jid, v in data.items()]
+def get_wishlist(uid):
+    d = _load(_upath(uid, "wishlist"), {})
+    return [(jid, v["title"], v["company"], v["url"]) for jid, v in d.items()]
 
 
 # ── Applied ───────────────────────────────────────────────────────────────────
 
-VALID_STATUSES = ["Applied", "Interviewing", "Offer", "Rejected", "Withdrawn"]
+def mark_applied(uid, job_id, title, company, url):
+    p = _upath(uid, "applied")
+    d = _load(p, {})
+    d[job_id] = {"title": title, "company": company, "url": url,
+                 "applied_at": datetime.now().isoformat(), "status": "Applied"}
+    _save(p, d)
 
 
-def mark_applied(job_id, title, company, url):
-    data = _load("applied", {})
-    data[job_id] = {
-        "title": title, "company": company, "url": url,
-        "applied_at": datetime.now().isoformat(),
-        "status": "Applied",
-    }
-    _save("applied", data)
-
-
-def update_status(job_id, status):
-    data = _load("applied", {})
-    if job_id in data:
-        data[job_id]["status"] = status
-        _save("applied", data)
+def update_status(uid, job_id, status):
+    p = _upath(uid, "applied")
+    d = _load(p, {})
+    if job_id in d:
+        d[job_id]["status"] = status
+        _save(p, d)
         return True
     return False
 
 
-def remove_applied(job_id):
-    data = _load("applied", {})
-    data.pop(job_id, None)
-    _save("applied", data)
+def remove_applied(uid, job_id):
+    p = _upath(uid, "applied")
+    d = _load(p, {})
+    d.pop(job_id, None)
+    _save(p, d)
 
 
-def get_applied():
-    data = _load("applied", {})
-    return [
-        (jid, v["title"], v["company"], v["url"], v["applied_at"], v.get("status", "Applied"))
-        for jid, v in data.items()
-    ]
+def get_applied(uid):
+    d = _load(_upath(uid, "applied"), {})
+    return [(jid, v["title"], v["company"], v["url"], v["applied_at"], v.get("status", "Applied"))
+            for jid, v in d.items()]
 
 
-# ── Filters (permanent until manually removed) ────────────────────────────────
+# ── Filters (permanent per user) ──────────────────────────────────────────────
 
-def add_filter(keyword):
-    data = _load("filters", [])
-    if keyword.lower() not in data:
-        data.append(keyword.lower())
-    _save("filters", data)
-
-
-def remove_filter(keyword):
-    data = _load("filters", [])
-    _save("filters", [k for k in data if k != keyword.lower()])
+def add_filter(uid, keyword):
+    p = _upath(uid, "filters")
+    d = _load(p, [])
+    if keyword.lower() not in d:
+        d.append(keyword.lower())
+    _save(p, d)
 
 
-def get_filters():
-    return _load("filters", [])
+def remove_filter(uid, keyword):
+    p = _upath(uid, "filters")
+    _save(p, [k for k in _load(p, []) if k != keyword.lower()])
 
 
-# ── Blacklist (permanent until manually removed) ──────────────────────────────
-
-def add_blacklist(company):
-    data = _load("blacklist", [])
-    if company.lower() not in data:
-        data.append(company.lower())
-    _save("blacklist", data)
+def get_filters(uid):
+    return _load(_upath(uid, "filters"), [])
 
 
-def remove_blacklist(company):
-    data = _load("blacklist", [])
-    _save("blacklist", [c for c in data if c != company.lower()])
+# ── Blacklist (permanent per user) ────────────────────────────────────────────
+
+def add_blacklist(uid, company):
+    p = _upath(uid, "blacklist")
+    d = _load(p, [])
+    if company.lower() not in d:
+        d.append(company.lower())
+    _save(p, d)
 
 
-def get_blacklist():
-    return _load("blacklist", [])
+def remove_blacklist(uid, company):
+    p = _upath(uid, "blacklist")
+    _save(p, [c for c in _load(p, []) if c != company.lower()])
 
 
-def is_blacklisted(company: str) -> bool:
-    return any(b in company.lower() for b in get_blacklist())
+def get_blacklist(uid):
+    return _load(_upath(uid, "blacklist"), [])
 
 
-# ── Settings ──────────────────────────────────────────────────────────────────
-
-def get_setting(key, default=None):
-    return _load("settings", {}).get(key, default)
+def is_blacklisted(uid, company: str) -> bool:
+    return any(b in company.lower() for b in get_blacklist(uid))
 
 
-def set_setting(key, value):
-    data = _load("settings", {})
-    data[key] = value
-    _save("settings", data)
+# ── Per-user settings ─────────────────────────────────────────────────────────
+
+def get_setting(uid, key, default=None):
+    return _load(_upath(uid, "settings"), {}).get(key, default)
 
 
-def is_paused() -> bool:
-    return get_setting("paused", False)
+def set_setting(uid, key, value):
+    p = _upath(uid, "settings")
+    d = _load(p, {})
+    d[key] = value
+    _save(p, d)
 
 
-def get_scan_times() -> list[str]:
-    """Returns list of HH:MM strings for preferred scan times."""
-    raw = get_setting("scan_times", "09:00,13:00,18:00")
+def is_paused(uid) -> bool:
+    return get_setting(uid, "paused", False)
+
+
+def get_scan_times(uid) -> list[str]:
+    raw = get_setting(uid, "scan_times", "09:00,13:00,18:00")
     return [t.strip() for t in raw.split(",") if t.strip()]
 
 
-# ── Daily job log (keeps only today — auto-cleanup) ───────────────────────────
+# ── Seen jobs — 7-day expiry ──────────────────────────────────────────────────
 
-def log_job(job_id, title, company, url):
-    today = date.today().isoformat()
-    data  = {today: _load("daily_jobs", {}).get(today, {})}   # keep ONLY today
-    data[today][job_id] = {"title": title, "company": company, "url": url}
-    _save("daily_jobs", data)
-
-
-def get_today_jobs():
-    data  = _load("daily_jobs", {})
-    today = data.get(date.today().isoformat(), {})
-    return [(jid, v["title"], v["company"], v["url"]) for jid, v in today.items()]
-
-
-# ── Seen jobs — 7-day expiry (same job re-alerts after a week if still open) ──
-
-def is_seen(job_id: str) -> bool:
-    data = _load("seen_jobs_list", {})
-    if job_id not in data:
+def is_seen(uid, job_id: str) -> bool:
+    p = _upath(uid, "seen_jobs")
+    d = _load(p, {})
+    if job_id not in d:
         return False
-    seen_at = datetime.fromisoformat(data[job_id])
-    return (datetime.now() - seen_at) < timedelta(days=7)
+    return (datetime.now() - datetime.fromisoformat(d[job_id])) < timedelta(days=7)
 
 
-def mark_seen(job_id: str):
-    data   = _load("seen_jobs_list", {})
+def mark_seen(uid, job_id: str):
+    p      = _upath(uid, "seen_jobs")
+    d      = _load(p, {})
     cutoff = (datetime.now() - timedelta(days=7)).isoformat()
-    # Prune expired entries
-    data   = {k: v for k, v in data.items() if v >= cutoff}
-    data[job_id] = datetime.now().isoformat()
-    _save("seen_jobs_list", data)
+    d      = {k: v for k, v in d.items() if v >= cutoff}
+    d[job_id] = datetime.now().isoformat()
+    _save(p, d)
+
+
+# ── Daily job log (today only) ────────────────────────────────────────────────
+
+def log_job(uid, job_id, title, company, url):
+    p     = _upath(uid, "daily_jobs")
+    today = date.today().isoformat()
+    d     = {today: _load(p, {}).get(today, {})}
+    d[today][job_id] = {"title": title, "company": company, "url": url}
+    _save(p, d)
+
+
+def get_today_jobs(uid):
+    d     = _load(_upath(uid, "daily_jobs"), {})
+    today = d.get(date.today().isoformat(), {})
+    return [(jid, v["title"], v["company"], v["url"]) for jid, v in today.items()]
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
-def get_stats() -> dict:
-    wishlist = _load("wishlist", {})
-    applied  = _load("applied", {})
-    daily    = _load("daily_jobs", {})
+def get_stats(uid) -> dict:
+    wishlist = _load(_upath(uid, "wishlist"), {})
+    applied  = _load(_upath(uid, "applied"), {})
+    daily    = _load(_upath(uid, "daily_jobs"), {})
     today    = date.today().isoformat()
     week_ago = (date.today() - timedelta(days=7)).isoformat()
-
     return {
-        "total_found": sum(len(v) for v in daily.values()),
         "today_found": len(daily.get(today, {})),
         "this_week":   sum(len(v) for k, v in daily.items() if k >= week_ago),
+        "total_found": sum(len(v) for v in daily.values()),
         "wishlist":    len(wishlist),
         "applied":     len(applied),
     }

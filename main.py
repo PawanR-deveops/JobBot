@@ -10,9 +10,10 @@ from commands import (
     cmd_stats, cmd_digest, cmd_search,
     cmd_filters, cmd_addfilter, cmd_removefilter,
     cmd_blacklist, cmd_unblacklist, cmd_blacklisted,
-    cmd_location, cmd_pause, cmd_resume, cmd_setstatus,
-    cmd_setschedule,
-    MAIN_KEYBOARD,
+    cmd_location, cmd_pause, cmd_resume,
+    cmd_setstatus, cmd_setschedule,
+    cmd_users, cmd_pending, cmd_ban,
+    _keyboard,
 )
 from callbacks import handle_callback
 
@@ -24,7 +25,6 @@ log = logging.getLogger(__name__)
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 
-# Button text → command function map
 BUTTON_MAP = {
     "Scan Now":     cmd_scan,
     "Wishlist":     cmd_wishlist,
@@ -37,11 +37,13 @@ BUTTON_MAP = {
     "Resume":       cmd_resume,
     "Help":         cmd_help,
     "Schedule":     cmd_setschedule,
+    "Users":        cmd_users,
+    "Pending":      cmd_pending,
 }
 
 PROMPT_MAP = {
     "Search":   "Type your search:\n/search devops\n/search network engineer bangalore",
-    "Location": "Type your city:\n/location Bangalore\n/location Chennai\n/location Mumbai",
+    "Location": "Change location:\n/location Bangalore\n/location Chennai\n/location Mumbai",
 }
 
 
@@ -50,17 +52,18 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text in BUTTON_MAP:
         await BUTTON_MAP[text](update, context)
     elif text in PROMPT_MAP:
-        await update.message.reply_text(PROMPT_MAP[text], reply_markup=MAIN_KEYBOARD)
+        uid = str(update.effective_user.id)
+        await update.message.reply_text(PROMPT_MAP[text], reply_markup=_keyboard(uid))
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
-    """Global error handler — logs error, notifies user, keeps bot alive."""
     log.error(f"Unhandled error: {context.error}", exc_info=context.error)
     if isinstance(update, Update) and update.effective_message:
         try:
+            uid = str(update.effective_user.id) if update.effective_user else "0"
             await update.effective_message.reply_text(
                 "Something went wrong. Please try again.",
-                reply_markup=MAIN_KEYBOARD,
+                reply_markup=_keyboard(uid),
             )
         except Exception:
             pass
@@ -70,11 +73,10 @@ def main():
     app = (
         Application.builder()
         .token(TELEGRAM_TOKEN)
-        .concurrent_updates(True)   # handles multiple button presses simultaneously
+        .concurrent_updates(True)
         .build()
     )
 
-    # Commands
     app.add_handler(CommandHandler("start",        cmd_start))
     app.add_handler(CommandHandler("help",         cmd_help))
     app.add_handler(CommandHandler("scan",         cmd_scan))
@@ -94,17 +96,15 @@ def main():
     app.add_handler(CommandHandler("resume",       cmd_resume))
     app.add_handler(CommandHandler("setstatus",    cmd_setstatus))
     app.add_handler(CommandHandler("setschedule",  cmd_setschedule))
+    app.add_handler(CommandHandler("users",        cmd_users))
+    app.add_handler(CommandHandler("pending",      cmd_pending))
+    app.add_handler(CommandHandler("ban",          cmd_ban))
 
-    # Inline buttons
     app.add_handler(CallbackQueryHandler(handle_callback))
-
-    # Bottom keyboard buttons
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_button))
-
-    # Global error handler — keeps bot alive on any crash
     app.add_error_handler(error_handler)
 
-    log.info("JobBot started with concurrent updates enabled")
+    log.info("JobHunt India Bot started")
     app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
 
 
