@@ -1,0 +1,39 @@
+name: LinkedIn Job Scanner
+
+on:
+  schedule:
+    - cron: '0 */3 * * *'   # runs every 3 hours
+  workflow_dispatch:          # manual trigger from GitHub UI
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write         # needed to commit seen_jobs.json back
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run job scanner
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scan.py
+
+      - name: Save seen jobs back to repo
+        run: |
+          git config user.email "github-actions@github.com"
+          git config user.name "GitHub Actions"
+          git add seen_jobs.json
+          git diff --staged --quiet || git commit -m "chore: update seen jobs"
+          git push
