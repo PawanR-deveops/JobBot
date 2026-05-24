@@ -1,15 +1,19 @@
 """
 User authentication and approval system.
-Admin (bot owner) approves/denies access requests.
+Auto-approves users who pass profile checks (username + real name + profile photo).
+Users who fail checks are sent to admin for manual approval.
 """
 
 import json
+import logging
 import os
 import subprocess
 from datetime import datetime
 
-DATA_DIR  = "data"
-ADMIN_ID  = os.getenv("ADMIN_CHAT_ID", "5086463703")
+log = logging.getLogger(__name__)
+
+DATA_DIR = "data"
+ADMIN_ID = os.getenv("ADMIN_CHAT_ID", "5086463703")
 
 
 def _path(name):
@@ -34,7 +38,7 @@ def _save(name, data):
         pass
 
 
-# ── User status ───────────────────────────────────────────────────────────────
+# ── Status checks ─────────────────────────────────────────────────────────────
 
 def is_admin(user_id: str) -> bool:
     return str(user_id) == str(ADMIN_ID)
@@ -43,30 +47,83 @@ def is_admin(user_id: str) -> bool:
 def is_approved(user_id: str) -> bool:
     if is_admin(user_id):
         return True
-    approved = _load("approved_users", {})
-    return str(user_id) in approved
+    return str(user_id) in _load("approved_users", {})
 
 
 def is_pending(user_id: str) -> bool:
-    pending = _load("pending_users", {})
-    return str(user_id) in pending
+    return str(user_id) in _load("pending_users", {})
 
 
-def request_access(user_id: str, full_name: str, username: str):
-    pending = _load("pending_users", {})
-    pending[str(user_id)] = {
-        "name":         full_name,
-        "username":     username or "",
-        "requested_at": datetime.now().isoformat(),
-    }
-    _save("pending_users", pending)
+def is_banned(user_id: str) -> bool:
+    return str(user_id) in _load("banned_users", [])
 
 
-def approve_user(user_id: str):
+# ── Profile auto-approval ─────────────────────────────────────────────────────
+
+async def check_and_auto_approve(bot, user) -> tuple[bool, str]:
+    """
+    Checks user's Telegram profile and auto-approves if it looks legitimate.
+
+    Checks:
+      1. Has a Telegram username (@handle)
+      2. Has a real first name (at least 2 chars, not all digits)
+      3. Has at least one profile photo
+
+    Returns (approved: bool, reason: str)
+    """
+    uid    = str(user.id)
+    issues = []
+    score  = 0
+
+    # Check 1: Has a username
+    if user.username:
+        score += 1
+        log.info(f"[auth] {uid} has username @{user.username}")
+    else:
+        issues.append("no Telegram username set")
+
+    # Check 2: Real name
+    name = (user.first_name or "").strip()
+    if name and len(name) >= 2 and not name.isdigit():
+        score += 1
+        log.info(f"[auth] {uid} has valid name: {name}")
+    else:
+        issues.append("name looks invalid")
+
+    # Check 3: Profile photo
+    try:
+        photos = await bot.get_user_profile_photos(user_id=user.id, limit=1)
+        if photos.total_count > 0:
+            score += 1
+            log.info(f"[auth] {uid} has profile photo")
+        else:
+            issues.append("no profile photo")
+    except Exception as e:
+        log.warning(f"[auth] Could not check photo for {uid}: {e}")
+        issues.append("profile photo check failed")
+
+    log.info(f"[auth] {uid} score={score}/3 issues={issues}")
+
+    if score >= 2:
+        # Profile looks real — auto approve
+        approve_user(uid, user.first_name or "", user.username or "", auto=True)
+        return True, f"auto-approved (score {score}/3)"
+
+    return False, ", ".join(issues)
+
+
+# ── User management ───────────────────────────────────────────────────────────
+
+def approve_user(user_id: str, name: str = "", username: str = "", auto: bool = False):
     pending  = _load("pending_users", {})
     approved = _load("approved_users", {})
-    info = pending.pop(str(user_id), {})
-    approved[str(user_id)] = {**info, "approved_at": datetime.now().isoformat()}
+    info     = pending.pop(str(user_id), {})
+    approved[str(user_id)] = {
+        "name":        name or info.get("name", ""),
+        "username":    username or info.get("username", ""),
+        "approved_at": datetime.now().isoformat(),
+        "method":      "auto" if auto else "manual",
+    }
     _save("pending_users", pending)
     _save("approved_users", approved)
 
@@ -87,8 +144,14 @@ def ban_user(user_id: str):
     _save("banned_users", banned)
 
 
-def is_banned(user_id: str) -> bool:
-    return str(user_id) in _load("banned_users", [])
+def request_access(user_id: str, full_name: str, username: str):
+    pending = _load("pending_users", {})
+    pending[str(user_id)] = {
+        "name":         full_name,
+        "username":     username or "",
+        "requested_at": datetime.now().isoformat(),
+    }
+    _save("pending_users", pending)
 
 
 def get_all_users() -> dict:

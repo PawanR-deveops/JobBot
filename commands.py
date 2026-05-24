@@ -168,36 +168,58 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text("You are not allowed to use this bot.")
         return
 
-    if not auth.is_approved(uid):
-        if not auth.is_pending(uid):
-            auth.request_access(uid, user.full_name or "", user.username or "")
-            kb = InlineKeyboardMarkup([[
-                InlineKeyboardButton("Approve", callback_data=f"approve|{uid}"),
-                InlineKeyboardButton("Deny",    callback_data=f"deny|{uid}"),
-            ]])
-            try:
-                await context.bot.send_message(
-                    chat_id=auth.ADMIN_ID,
-                    text=f"Access request!\n\nName: {user.full_name}\nUsername: @{user.username}\nID: {uid}",
-                    reply_markup=kb,
-                )
-            except Exception:
-                pass
-
+    if auth.is_approved(uid):
+        kb = _keyboard(uid)
         await update.message.reply_text(
-            f"Welcome to {BOT_NAME}!\n\n"
-            "Your access request has been sent.\n"
-            "You will be notified once the admin approves you."
+            f"Welcome back to {BOT_NAME}!\n\n"
+            "I scan LinkedIn every 30 minutes and alert you about new job openings "
+            "matching your profile in India.\n\n"
+            "Tap any button below to get started.",
+            reply_markup=kb,
         )
         return
 
-    kb = _keyboard(uid)
+    if not auth.is_pending(uid):
+        # New user — try auto-approval first
+        approved, reason = await auth.check_and_auto_approve(context.bot, user)
+        if approved:
+            kb = _keyboard(uid)
+            await update.message.reply_text(
+                f"Welcome to {BOT_NAME}!\n\n"
+                "I scan LinkedIn every 30 minutes and alert you about new job openings "
+                "matching your profile in India.\n\n"
+                "Tap any button below to get started.",
+                reply_markup=kb,
+            )
+            log.info(f"[start] {uid} auto-approved: {reason}")
+            return
+
+        # Profile didn't pass — put in pending and notify admin
+        auth.request_access(uid, user.full_name or "", user.username or "")
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("Approve", callback_data=f"approve|{uid}"),
+            InlineKeyboardButton("Deny",    callback_data=f"deny|{uid}"),
+        ]])
+        admin_text = (
+            f"Access request (manual review needed)\n\n"
+            f"Name: {user.full_name}\n"
+            f"Username: @{user.username}\n"
+            f"ID: {uid}\n"
+            f"Issues: {reason}"
+        )
+        try:
+            await context.bot.send_message(
+                chat_id=auth.ADMIN_ID,
+                text=admin_text,
+                reply_markup=kb,
+            )
+        except Exception:
+            pass
+
     await update.message.reply_text(
         f"Welcome to {BOT_NAME}!\n\n"
-        "I scan LinkedIn every 30 minutes and alert you about new job openings "
-        "matching your profile in India.\n\n"
-        "Tap any button below to get started.",
-        reply_markup=kb,
+        "Your access request has been sent to the admin.\n"
+        "You will be notified once approved."
     )
 
 
