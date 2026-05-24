@@ -168,7 +168,8 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text("You are not allowed to use this bot.")
         return
 
-    if auth.is_approved(uid):
+    # Admin always bypasses approval checks
+    if auth.is_admin(uid) or auth.is_approved(uid):
         kb = _keyboard(uid)
         await update.message.reply_text(
             f"Welcome back to {BOT_NAME}!\n\n"
