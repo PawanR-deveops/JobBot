@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 
 DATA_DIR = "data"
 # Support both TELEGRAM_CHAT_ID (used in .env.example) and ADMIN_CHAT_ID
-ADMIN_ID = os.getenv("TELEGRAM_CHAT_ID") or os.getenv("ADMIN_CHAT_ID", "5086463703")
+ADMIN_ID = (os.getenv("TELEGRAM_CHAT_ID") or os.getenv("ADMIN_CHAT_ID") or "5086463703").strip()
 
 
 def _path(name):
