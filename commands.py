@@ -94,20 +94,53 @@ async def cmd_wishlist(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"{title}\n{company}", reply_markup=kb)
 
 
+STATUS_EMOJI = {
+    "Applied":      "Sent",
+    "Interviewing": "Interview",
+    "Offer":        "Offer",
+    "Rejected":     "Rejected",
+    "Withdrawn":    "Withdrawn",
+}
+
+
 async def cmd_applied(update: Update, context: ContextTypes.DEFAULT_TYPE):
     jobs = db.get_applied()
     if not jobs:
         await update.message.reply_text("No applied jobs tracked yet.")
         return
     await update.message.reply_text(f"Applied jobs ({len(jobs)}):")
-    for job_id, title, company, url, applied_at in jobs[:10]:
-        kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("Open", url=url),
-            InlineKeyboardButton("Remove", callback_data=f"rm_applied|{job_id}"),
-        ]])
+    for job_id, title, company, url, applied_at, status in jobs[:10]:
+        label = STATUS_EMOJI.get(status, status)
+        kb = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("Open", url=url),
+                InlineKeyboardButton(f"Status: {label}", callback_data=f"status_menu|{job_id}"),
+            ],
+            [InlineKeyboardButton("Remove", callback_data=f"rm_applied|{job_id}")],
+        ])
         await update.message.reply_text(
-            f"{title}\n{company}\nApplied: {applied_at[:10]}", reply_markup=kb
+            f"Title: {title}\nCompany: {company}\nApplied: {applied_at[:10]}\nStatus: {status}",
+            reply_markup=kb,
         )
+
+
+async def cmd_setstatus(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if len(context.args) < 2:
+        await update.message.reply_text(
+            "Usage: /setstatus <job_id> <status>\n\n"
+            "Statuses: Applied, Interviewing, Offer, Rejected, Withdrawn\n\n"
+            "Tip: Use /applied to see job IDs."
+        )
+        return
+    job_id = context.args[0]
+    status = context.args[1].capitalize()
+    if status not in db.VALID_STATUSES:
+        await update.message.reply_text(f"Invalid status. Choose: {', '.join(db.VALID_STATUSES)}")
+        return
+    if db.update_status(job_id, status):
+        await update.message.reply_text(f"Status updated to: {status}")
+    else:
+        await update.message.reply_text("Job not found. Use /applied to see your job IDs.")
 
 
 async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):

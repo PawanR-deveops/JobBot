@@ -2,6 +2,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 import storage as db
 
+STATUSES = ["Applied", "Interviewing", "Offer", "Rejected", "Withdrawn"]
+
 
 def _parse_job(text: str) -> tuple[str, str]:
     title, company = "Unknown", "Unknown"
@@ -47,3 +49,23 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif action == "rm_applied":
         db.remove_applied(job_id)
         await query.edit_message_text(f"{query.message.text}\nRemoved from applied list.")
+
+    elif action == "status_menu":
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton(s, callback_data=f"set_status|{job_id}|{s}")]
+            for s in STATUSES
+        ])
+        await query.edit_message_text(
+            f"{query.message.text}\n\nSelect new status:",
+            reply_markup=kb,
+        )
+
+    elif action == "set_status":
+        new_status = parts[2] if len(parts) > 2 else "Applied"
+        db.update_status(job_id, new_status)
+        await query.edit_message_text(
+            "\n".join(
+                line if not line.startswith("Status:") else f"Status: {new_status}"
+                for line in (query.message.text or "").splitlines()
+            )
+        )

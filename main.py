@@ -7,7 +7,7 @@ from commands import (
     cmd_stats, cmd_digest, cmd_search,
     cmd_filters, cmd_addfilter, cmd_removefilter,
     cmd_blacklist, cmd_unblacklist, cmd_blacklisted,
-    cmd_location, cmd_pause, cmd_resume,
+    cmd_location, cmd_pause, cmd_resume, cmd_setstatus,
 )
 from callbacks import handle_callback
 
@@ -39,6 +39,7 @@ def main():
     app.add_handler(CommandHandler("location",      cmd_location))
     app.add_handler(CommandHandler("pause",         cmd_pause))
     app.add_handler(CommandHandler("resume",        cmd_resume))
+    app.add_handler(CommandHandler("setstatus",     cmd_setstatus))
     app.add_handler(CallbackQueryHandler(handle_callback))
 
     logging.info("JobBot polling started")

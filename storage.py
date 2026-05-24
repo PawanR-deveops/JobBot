@@ -62,10 +62,26 @@ def get_wishlist():
 
 # ── Applied ───────────────────────────────────────────────────────────────────
 
+VALID_STATUSES = ["Applied", "Interviewing", "Offer", "Rejected", "Withdrawn"]
+
+
 def mark_applied(job_id, title, company, url):
     data = _load("applied", {})
-    data[job_id] = {"title": title, "company": company, "url": url, "applied_at": datetime.now().isoformat()}
+    data[job_id] = {
+        "title": title, "company": company, "url": url,
+        "applied_at": datetime.now().isoformat(),
+        "status": "Applied",
+    }
     _save("applied", data)
+
+
+def update_status(job_id, status):
+    data = _load("applied", {})
+    if job_id in data:
+        data[job_id]["status"] = status
+        _save("applied", data)
+        return True
+    return False
 
 
 def remove_applied(job_id):
@@ -76,7 +92,10 @@ def remove_applied(job_id):
 
 def get_applied():
     data = _load("applied", {})
-    return [(jid, v["title"], v["company"], v["url"], v["applied_at"]) for jid, v in data.items()]
+    return [
+        (jid, v["title"], v["company"], v["url"], v["applied_at"], v.get("status", "Applied"))
+        for jid, v in data.items()
+    ]
 
 
 # ── Filters ───────────────────────────────────────────────────────────────────
