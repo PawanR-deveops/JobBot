@@ -1,0 +1,46 @@
+name: Telegram Bot (Interactive)
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'   # restart every 4 hours automatically
+  workflow_dispatch:          # manual start from GitHub UI
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 230      # stays alive for ~4 hours, then cron restarts it
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Configure git for data commits
+        run: |
+          git config user.email "bot@jobbot.local"
+          git config user.name "JobBot"
+
+      - name: Run bot
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python main.py
+
+      - name: Push any data changes on exit
+        if: always()
+        run: |
+          git add data/ || true
+          git diff --staged --quiet || git commit -m "bot: sync data on exit"
+          git push || true

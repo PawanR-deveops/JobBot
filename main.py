@@ -1,11 +1,7 @@
 import logging
-import pytz
-from datetime import time as dtime
-
+import os
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 
-from config_bot import TELEGRAM_TOKEN
-from database import init_db
 from commands import (
     cmd_start, cmd_help, cmd_scan, cmd_wishlist, cmd_applied,
     cmd_stats, cmd_digest, cmd_search,
@@ -14,22 +10,18 @@ from commands import (
     cmd_location, cmd_pause, cmd_resume,
 )
 from callbacks import handle_callback
-from scheduler_jobs import daily_digest, weekly_stats
 
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     level=logging.INFO,
 )
 
-IST = pytz.timezone("Asia/Kolkata")
+TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 
 
 def main():
-    init_db()
-
     app = Application.builder().token(TELEGRAM_TOKEN).build()
 
-    # Commands
     app.add_handler(CommandHandler("start",         cmd_start))
     app.add_handler(CommandHandler("help",          cmd_help))
     app.add_handler(CommandHandler("scan",          cmd_scan))
@@ -47,22 +39,9 @@ def main():
     app.add_handler(CommandHandler("location",      cmd_location))
     app.add_handler(CommandHandler("pause",         cmd_pause))
     app.add_handler(CommandHandler("resume",        cmd_resume))
-
-    # Inline button callbacks
     app.add_handler(CallbackQueryHandler(handle_callback))
 
-    # Scheduled jobs
-    app.job_queue.run_daily(
-        daily_digest,
-        time=dtime(9, 0, tzinfo=IST),       # 9:00 AM IST every day
-    )
-    app.job_queue.run_daily(
-        weekly_stats,
-        time=dtime(10, 0, tzinfo=IST),      # 10:00 AM IST
-        days=(6,),                           # Sunday only
-    )
-
-    logging.info("JobBot started!")
+    logging.info("JobBot polling started")
     app.run_polling(drop_pending_updates=True)
 
 
