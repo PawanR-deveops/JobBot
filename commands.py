@@ -58,7 +58,28 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await cmd_start(update, context)
+    await update.message.reply_text(
+        "Available buttons:\n\n"
+        "Scan Now     - Find new jobs on LinkedIn\n"
+        "Wishlist     - Jobs you saved\n"
+        "Applied Jobs - Jobs you applied to + status\n"
+        "Stats        - Your job hunt numbers\n"
+        "Digest       - Today's job summary\n"
+        "Search       - Search a specific keyword\n"
+        "My Filters   - Your custom search keywords\n"
+        "Blacklist    - Companies to skip\n"
+        "Location     - Change search city\n"
+        "Pause Alerts - Stop auto job alerts\n"
+        "Resume       - Turn alerts back on\n\n"
+        "Extra commands:\n"
+        "/addfilter <keyword>\n"
+        "/removefilter <keyword>\n"
+        "/blacklist <company>\n"
+        "/unblacklist <company>\n"
+        "/location <city>\n"
+        "/setstatus <job_id> <status>",
+        reply_markup=MAIN_KEYBOARD,
+    )
 
 
 async def cmd_scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
