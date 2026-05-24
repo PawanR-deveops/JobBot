@@ -99,22 +99,39 @@ def set_bot_photo(image_bytes: bytes) -> bool:
         return False
 
 
+def send_logo_to_admin(image_bytes: bytes):
+    admin_id = os.environ.get("ADMIN_CHAT_ID", "5086463703")
+    caption = (
+        "Your JobHunt India bot logo is ready!\n\n"
+        "To set it as your bot's profile photo:\n"
+        "1. Open @BotFather\n"
+        "2. Send /setuserpic\n"
+        "3. Select @pawanjobHunt_bot\n"
+        "4. Forward this image to BotFather"
+    )
+    resp = requests.post(
+        f"{API}/sendDocument",
+        data={"chat_id": admin_id, "caption": caption},
+        files={"document": ("bot_logo.png", image_bytes, "image/png")},
+        timeout=30,
+    )
+    data = resp.json()
+    if data.get("ok"):
+        print(f"Logo sent to admin chat {admin_id}!")
+    else:
+        print(f"Send failed: {data.get('description', data)}")
+
+
 def main():
     print("Creating logo...")
     image_bytes = create_logo()
 
-    # Save locally as well
     with open("bot_logo.png", "wb") as f:
         f.write(image_bytes)
     print("Logo saved: bot_logo.png")
 
-    print("Uploading to Telegram...")
-    if not set_bot_photo(image_bytes):
-        print("\nManual fallback:")
-        print("1. Open Telegram → @BotFather")
-        print("2. Send /setuserpic")
-        print("3. Select your bot")
-        print("4. Send the file: bot_logo.png")
+    print("Sending logo to your Telegram...")
+    send_logo_to_admin(image_bytes)
 
 
 if __name__ == "__main__":
