@@ -1,0 +1,23 @@
+name: Set Bot Logo (run once)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  set-logo:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install Pillow requests
+
+      - name: Create logo and set bot photo
+        run: python set_logo.py
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}

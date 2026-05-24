@@ -1,15 +1,15 @@
-name: Daily Digest (9 AM IST)
+name: Job Scan (every 30 min)
 
 on:
   schedule:
-    - cron: '30 3 * * *'   # 3:30 UTC = 9:00 AM IST
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  digest:
+  scan:
     runs-on: ubuntu-latest
 
     steps:
@@ -29,8 +29,8 @@ jobs:
           git config user.email "jobhuntbot@users.noreply.github.com"
           git config user.name "JobHunt Bot"
 
-      - name: Run daily digest
-        run: python digest_action.py
+      - name: Run scan
+        run: python scan.py
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           ADMIN_CHAT_ID:  ${{ secrets.ADMIN_CHAT_ID }}

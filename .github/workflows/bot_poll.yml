@@ -1,8 +1,10 @@
 name: Telegram Bot (Interactive)
 
+# Keeps main.py running as a polling bot.
+# Restarts every 4 hours (GitHub Actions timeout safety).
 on:
   schedule:
-    - cron: '0 */4 * * *'   # restart every 4 hours as safety net
+    - cron: '0 */4 * * *'
   workflow_dispatch:
 
 jobs:
@@ -32,22 +34,27 @@ jobs:
           git config user.email "bot@jobbot.local"
           git config user.name "JobBot"
 
-      - name: Run bot with auto-restart on crash
+      - name: Set bot profile photo
+        run: python set_logo.py
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      - name: Run bot with auto-restart on crash
         run: |
           while true; do
             echo "Starting bot..."
             python main.py || true
-            echo "Bot stopped. Pulling latest code and restarting in 10 seconds..."
+            echo "Bot stopped. Pulling latest and restarting in 10 seconds..."
             git pull --rebase origin main || true
             sleep 10
           done
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          ADMIN_CHAT_ID:  ${{ secrets.ADMIN_CHAT_ID }}
 
       - name: Push data changes on exit
         if: always()
         run: |
           git add data/ || true
-          git diff --staged --quiet || git commit -m "bot: sync data"
+          git diff --staged --quiet || git commit -m "bot: sync data on exit"
           git push || true

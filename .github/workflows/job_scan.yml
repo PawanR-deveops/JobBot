@@ -1,8 +1,8 @@
-name: LinkedIn Job Scanner
+name: LinkedIn Job Scanner (legacy — superseded by scan.yml)
 
+# Disabled: scan.yml now handles periodic scanning.
+# Keep for manual trigger only.
 on:
-  schedule:
-    - cron: '*/30 * * * *'   # runs every 30 minutes for near real-time alerts
   workflow_dispatch:
 
 jobs:
@@ -13,13 +13,11 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -32,10 +30,10 @@ jobs:
           git config user.name "JobBot"
 
       - name: Run scanner
+        run: python scan.py
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python scan.py
+          ADMIN_CHAT_ID:  ${{ secrets.ADMIN_CHAT_ID }}
 
       - name: Push data updates
         if: always()
