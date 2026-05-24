@@ -66,9 +66,10 @@ def scrape_linkedin(keyword: str) -> list[dict]:
         return []
 
 
-def get_all_jobs() -> list[dict]:
+def get_all_jobs(extra_keywords: list[str] = None) -> list[dict]:
+    all_roles = TARGET_ROLES + (extra_keywords or [])
     all_jobs = {}
-    for role in TARGET_ROLES:
+    for role in all_roles:
         time.sleep(random.uniform(2, 5))
         jobs = scrape_linkedin(role)
         print(f"[scraper] '{role}' → {len(jobs)} found")
