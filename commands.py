@@ -17,8 +17,9 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
         ["Scan Now",     "Wishlist",    "Applied Jobs"],
         ["Stats",        "Digest",      "Search"],
-        ["My Filters",   "Blacklist",   "Location"],
-        ["Pause Alerts", "Resume",      "Help"],
+        ["My Filters",   "Blacklist",   "Schedule"],
+        ["Location",     "Pause Alerts","Resume"],
+        ["Help"],
     ],
     resize_keyboard=True,
     is_persistent=True,
@@ -280,14 +281,21 @@ async def cmd_filters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     f = db.get_filters()
     if not f:
         await update.message.reply_text(
-            "No custom filters yet.\nUse /addfilter <keyword> to add one.",
+            "No custom filters yet.\nUse /addfilter <keyword> to add one.\n\n"
+            "Example:\n/addfilter kubernetes\n/addfilter machine learning",
             reply_markup=MAIN_KEYBOARD,
         )
         return
     await update.message.reply_text(
-        "Custom filters:\n" + "\n".join(f"- {k}" for k in f),
+        f"Custom filters ({len(f)}) — tap Remove to delete:",
         reply_markup=MAIN_KEYBOARD,
     )
+    for keyword in f:
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton(f"Remove: {keyword}", callback_data=f"rm_filter|{keyword}"),
+        ]])
+        await update.message.reply_text(keyword, reply_markup=kb)
+        await asyncio.sleep(0.3)
 
 
 @safe
@@ -335,12 +343,45 @@ async def cmd_blacklisted(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bl = db.get_blacklist()
     if not bl:
         await update.message.reply_text(
-            "No companies blacklisted.\nUse /blacklist <company> to add one.",
+            "No companies blacklisted.\nUse /blacklist <company> to skip them.\n\n"
+            "Example:\n/blacklist Wipro\n/blacklist Infosys",
             reply_markup=MAIN_KEYBOARD,
         )
         return
     await update.message.reply_text(
-        "Blacklisted companies:\n" + "\n".join(f"- {c}" for c in bl),
+        f"Blacklisted companies ({len(bl)}) — tap Remove to unblock:",
+        reply_markup=MAIN_KEYBOARD,
+    )
+    for company in bl:
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton(f"Remove: {company}", callback_data=f"rm_blacklist|{company}"),
+        ]])
+        await update.message.reply_text(company, reply_markup=kb)
+        await asyncio.sleep(0.3)
+
+
+@safe
+async def cmd_setschedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        times = db.get_scan_times()
+        await update.message.reply_text(
+            f"Current scan times (IST): {', '.join(times)}\n\n"
+            "To change, type times in HH:MM format:\n"
+            "/setschedule 09:00 13:00 18:00\n\n"
+            "Bot will scan LinkedIn at these times every day automatically.",
+            reply_markup=MAIN_KEYBOARD,
+        )
+        return
+    times = [t for t in context.args if ":" in t]
+    if not times:
+        await update.message.reply_text(
+            "Invalid format. Use HH:MM\nExample: /setschedule 09:00 13:00 18:00",
+            reply_markup=MAIN_KEYBOARD,
+        )
+        return
+    db.set_setting("scan_times", ",".join(times))
+    await update.message.reply_text(
+        f"Scan schedule updated!\nWill scan at: {', '.join(times)} IST every day.",
         reply_markup=MAIN_KEYBOARD,
     )
 

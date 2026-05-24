@@ -106,3 +106,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 InlineKeyboardButton("Change Status", callback_data=f"status_menu|{job_id}"),
             ]]),
         )
+
+    elif action == "rm_filter":
+        keyword = parts[1] if len(parts) > 1 else ""
+        db.remove_filter(keyword)
+        await query.edit_message_text(f"Removed filter: {keyword}")
+
+    elif action == "rm_blacklist":
+        company = parts[1] if len(parts) > 1 else ""
+        db.remove_blacklist(company)
+        await query.edit_message_text(f"Removed from blacklist: {company}")

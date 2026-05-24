@@ -11,6 +11,7 @@ from commands import (
     cmd_filters, cmd_addfilter, cmd_removefilter,
     cmd_blacklist, cmd_unblacklist, cmd_blacklisted,
     cmd_location, cmd_pause, cmd_resume, cmd_setstatus,
+    cmd_setschedule,
     MAIN_KEYBOARD,
 )
 from callbacks import handle_callback
@@ -35,6 +36,7 @@ BUTTON_MAP = {
     "Pause Alerts": cmd_pause,
     "Resume":       cmd_resume,
     "Help":         cmd_help,
+    "Schedule":     cmd_setschedule,
 }
 
 PROMPT_MAP = {
@@ -91,6 +93,7 @@ def main():
     app.add_handler(CommandHandler("pause",        cmd_pause))
     app.add_handler(CommandHandler("resume",       cmd_resume))
     app.add_handler(CommandHandler("setstatus",    cmd_setstatus))
+    app.add_handler(CommandHandler("setschedule",  cmd_setschedule))
 
     # Inline buttons
     app.add_handler(CallbackQueryHandler(handle_callback))

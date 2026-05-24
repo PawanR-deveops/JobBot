@@ -98,7 +98,7 @@ def get_applied():
     ]
 
 
-# ── Filters ───────────────────────────────────────────────────────────────────
+# ── Filters (permanent until manually removed) ────────────────────────────────
 
 def add_filter(keyword):
     data = _load("filters", [])
@@ -116,7 +116,7 @@ def get_filters():
     return _load("filters", [])
 
 
-# ── Blacklist ─────────────────────────────────────────────────────────────────
+# ── Blacklist (permanent until manually removed) ──────────────────────────────
 
 def add_blacklist(company):
     data = _load("blacklist", [])
@@ -154,47 +154,54 @@ def is_paused() -> bool:
     return get_setting("paused", False)
 
 
-# ── Daily job log ─────────────────────────────────────────────────────────────
+def get_scan_times() -> list[str]:
+    """Returns list of HH:MM strings for preferred scan times."""
+    raw = get_setting("scan_times", "09:00,13:00,18:00")
+    return [t.strip() for t in raw.split(",") if t.strip()]
+
+
+# ── Daily job log (keeps only today — auto-cleanup) ───────────────────────────
 
 def log_job(job_id, title, company, url):
-    data = _load("daily_jobs", {})
     today = date.today().isoformat()
-    data.setdefault(today, {})[job_id] = {"title": title, "company": company, "url": url}
-    # Keep only last 7 days
-    cutoff = (date.today() - timedelta(days=7)).isoformat()
-    data = {k: v for k, v in data.items() if k >= cutoff}
+    data  = {today: _load("daily_jobs", {}).get(today, {})}   # keep ONLY today
+    data[today][job_id] = {"title": title, "company": company, "url": url}
     _save("daily_jobs", data)
 
 
 def get_today_jobs():
-    data = _load("daily_jobs", {})
+    data  = _load("daily_jobs", {})
     today = data.get(date.today().isoformat(), {})
     return [(jid, v["title"], v["company"], v["url"]) for jid, v in today.items()]
 
 
-# ── Seen jobs (dedup) ─────────────────────────────────────────────────────────
+# ── Seen jobs — 7-day expiry (same job re-alerts after a week if still open) ──
 
 def is_seen(job_id: str) -> bool:
-    return job_id in _load("seen_jobs_list", [])
+    data = _load("seen_jobs_list", {})
+    if job_id not in data:
+        return False
+    seen_at = datetime.fromisoformat(data[job_id])
+    return (datetime.now() - seen_at) < timedelta(days=7)
 
 
 def mark_seen(job_id: str):
-    data = _load("seen_jobs_list", [])
-    if job_id not in data:
-        data.append(job_id)
-        if len(data) > 2000:
-            data = data[-2000:]
-        _save("seen_jobs_list", data)
+    data   = _load("seen_jobs_list", {})
+    cutoff = (datetime.now() - timedelta(days=7)).isoformat()
+    # Prune expired entries
+    data   = {k: v for k, v in data.items() if v >= cutoff}
+    data[job_id] = datetime.now().isoformat()
+    _save("seen_jobs_list", data)
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
 def get_stats() -> dict:
-    wishlist   = _load("wishlist", {})
-    applied    = _load("applied", {})
-    daily      = _load("daily_jobs", {})
-    today      = date.today().isoformat()
-    week_ago   = (date.today() - timedelta(days=7)).isoformat()
+    wishlist = _load("wishlist", {})
+    applied  = _load("applied", {})
+    daily    = _load("daily_jobs", {})
+    today    = date.today().isoformat()
+    week_ago = (date.today() - timedelta(days=7)).isoformat()
 
     return {
         "total_found": sum(len(v) for v in daily.values()),
