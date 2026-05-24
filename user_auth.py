@@ -13,7 +13,8 @@ from datetime import datetime
 log = logging.getLogger(__name__)
 
 DATA_DIR = "data"
-ADMIN_ID = os.getenv("ADMIN_CHAT_ID", "5086463703")
+# Support both TELEGRAM_CHAT_ID (used in .env.example) and ADMIN_CHAT_ID
+ADMIN_ID = os.getenv("TELEGRAM_CHAT_ID") or os.getenv("ADMIN_CHAT_ID", "5086463703")
 
 
 def _path(name):
@@ -51,6 +52,8 @@ def is_approved(user_id: str) -> bool:
 
 
 def is_pending(user_id: str) -> bool:
+    if is_admin(user_id):
+        return False
     return str(user_id) in _load("pending_users", {})
 
 
@@ -145,6 +148,8 @@ def ban_user(user_id: str):
 
 
 def request_access(user_id: str, full_name: str, username: str):
+    if is_admin(user_id):
+        return
     pending = _load("pending_users", {})
     pending[str(user_id)] = {
         "name":         full_name,
