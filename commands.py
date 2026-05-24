@@ -1,9 +1,21 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
 
 import storage as db
 from scraper import get_all_jobs, scrape_linkedin
 from matcher import matches
+
+# Persistent bottom keyboard — always visible in chat
+MAIN_KEYBOARD = ReplyKeyboardMarkup(
+    [
+        ["Scan Now",     "Wishlist",    "Applied Jobs"],
+        ["Stats",        "Digest",      "Search"],
+        ["My Filters",   "Blacklist",   "Location"],
+        ["Pause Alerts", "Resume",      "Help"],
+    ],
+    resize_keyboard=True,
+    is_persistent=True,
+)
 
 
 def _job_keyboard(job_id: str) -> InlineKeyboardMarkup:
@@ -30,23 +42,18 @@ def _fmt(job: dict) -> str:
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "JobBot is active!\n\n"
-        "/scan              - Scan LinkedIn now\n"
-        "/wishlist          - Saved jobs\n"
-        "/applied           - Jobs you applied to\n"
-        "/stats             - Your stats\n"
-        "/digest            - Today's job summary\n"
-        "/search <keyword>  - Search any keyword\n"
-        "/addfilter <kw>    - Add custom keyword\n"
-        "/removefilter <kw> - Remove keyword\n"
-        "/filters           - Show your filters\n"
-        "/blacklist <co>    - Skip a company\n"
-        "/unblacklist <co>  - Remove from blacklist\n"
-        "/blacklisted       - Show blacklisted companies\n"
-        "/location <city>   - Change location\n"
-        "/pause             - Pause alerts\n"
-        "/resume            - Resume alerts\n"
-        "/help              - Show this menu"
+        "JobBot is active! Use the buttons below or type commands.\n\n"
+        "Scan Now     - Scan LinkedIn for new jobs\n"
+        "Wishlist     - Your saved jobs\n"
+        "Applied Jobs - Jobs you applied to\n"
+        "Stats        - Your job hunt stats\n"
+        "Digest       - Today's job summary\n"
+        "Search       - Search any keyword\n"
+        "My Filters   - Custom keywords\n"
+        "Blacklist    - Skip certain companies\n"
+        "Location     - Change search city\n"
+        "Pause/Resume - Toggle job alerts",
+        reply_markup=MAIN_KEYBOARD,
     )
 
 
