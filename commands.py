@@ -262,7 +262,7 @@ async def cmd_scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Scanning LinkedIn... takes 1-2 minutes.")
 
     extra    = db.get_filters(uid)
-    all_jobs = get_all_jobs(extra_keywords=extra)
+    all_jobs = await asyncio.to_thread(get_all_jobs, extra_keywords=extra)
     new_jobs = [
         j for j in all_jobs
         if not db.is_seen(uid, j["id"]) and matches(j) and not db.is_blacklisted(uid, j["company"])
@@ -372,7 +372,7 @@ async def cmd_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     keyword = " ".join(context.args)
     await update.message.reply_text(f"Searching: {keyword}...")
-    jobs = scrape_linkedin(keyword)
+    jobs = await asyncio.to_thread(scrape_linkedin, keyword)
     if not jobs:
         await update.message.reply_text("No results found.", reply_markup=_keyboard(uid))
         return
