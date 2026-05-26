@@ -31,8 +31,8 @@ jobs:
 
       - name: Configure git
         run: |
-          git config user.email "bot@jobbot.local"
-          git config user.name "JobBot"
+          git config user.email "jobhuntbot@users.noreply.github.com"
+          git config user.name "JobHunt Bot"
 
       - name: Run bot with auto-restart on crash
         run: |
@@ -45,7 +45,8 @@ jobs:
           done
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          ADMIN_CHAT_ID:  ${{ secrets.ADMIN_CHAT_ID }}
+          ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
       - name: Push data changes on exit
         if: always()
