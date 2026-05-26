@@ -1,7 +1,5 @@
 name: Telegram Bot (Interactive)
 
-# Keeps main.py running as a polling bot.
-# Restarts every 4 hours (GitHub Actions timeout safety).
 on:
   schedule:
     - cron: '0 */4 * * *'
@@ -19,7 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_PAT }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
