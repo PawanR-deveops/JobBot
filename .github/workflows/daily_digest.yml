@@ -33,4 +33,12 @@ jobs:
         run: python digest_action.py
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          ADMIN_CHAT_ID:  ${{ secrets.ADMIN_CHAT_ID }}
+          ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      - name: Push data to repo
+        if: always()
+        run: |
+          git add data/ || true
+          git diff --staged --quiet || git commit -m "digest: update daily log"
+          git push || true
