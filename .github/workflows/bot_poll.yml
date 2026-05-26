@@ -2,8 +2,12 @@ name: Telegram Bot (Interactive)
 
 on:
   schedule:
-    - cron: '0 */4 * * *'
+    - cron: '0 */4 * * *'   # Failsafe: restart every 4h if self-trigger missed
   workflow_dispatch:
+
+concurrency:
+  group: bot-poll
+  cancel-in-progress: false   # Never cancel a running bot, queue next one
 
 jobs:
   poll:
@@ -32,15 +36,8 @@ jobs:
           git config user.email "jobhuntbot@users.noreply.github.com"
           git config user.name "JobHunt Bot"
 
-      - name: Run bot with auto-restart on crash
-        run: |
-          while true; do
-            echo "Starting bot..."
-            python main.py || true
-            echo "Bot stopped. Pulling latest and restarting in 10 seconds..."
-            git pull --rebase origin main || true
-            sleep 10
-          done
+      - name: Run bot
+        run: python main.py
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -52,3 +49,13 @@ jobs:
           git add data/ || true
           git diff --staged --quiet || git commit -m "bot: sync data on exit"
           git push || true
+
+      - name: Self-restart — queue next run immediately
+        if: always()
+        run: |
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GH_PAT }}" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/PawanR-deveops/JobBot/actions/workflows/bot_poll.yml/dispatches" \
+            -d '{"ref":"main"}'
+          echo "Next bot run queued"
