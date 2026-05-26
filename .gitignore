@@ -3,3 +3,7 @@ bot_logo.png
 *.db
 __pycache__/
 *.pyc
+data/users/
+data/approved_users.json
+data/pending_users.json
+data/banned_users.json
